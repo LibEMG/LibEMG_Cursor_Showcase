@@ -2,15 +2,17 @@ from tkinter import *
 from myo_mouse import MyoMouse
 from libemg.screen_guided_training import ScreenGuidedTraining
 from libemg.data_handler import OnlineDataHandler, OfflineDataHandler
-from libemg.streamers import myo_streamer
+from libemg.streamers import oymotion_streamer
 from libemg.utils import make_regex
 from libemg.feature_extractor import FeatureExtractor
 from libemg.emg_classifier import OnlineEMGClassifier, EMGClassifier
+from threading import Thread
+import time
 
 class Menu:
     def __init__(self):
         # Myo Streamer - start streaming the myo data 
-        myo_streamer()
+        oymotion_streamer(platform='windows')
 
         # Create online data handler to listen for the data
         self.odh = OnlineDataHandler()
@@ -30,7 +32,7 @@ class Menu:
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.window.title("Game Menu")
         self.window.geometry("500x275")
-        self.proportional = BooleanVar(value=False)
+        self.proportional = BooleanVar(value=True)
 
         Label(self.window, font=("Arial bold", 20), text = 'LibEMG - Mouse Demo').pack(pady=(10,20))
         # Train Model Button
@@ -41,26 +43,33 @@ class Menu:
         Checkbutton(self.window, text='Proportional', font=("Arial", 18), variable=self.proportional, onvalue=True, offvalue=False).pack()
 
     def start_mouse(self):
-        self.window.destroy()
+        self.clear_frame()
+        btn = Button(self.window, font=("Arial", 18), text = 'Stop Classifier', command=self.on_closing)
+        btn.pack(pady=100)
         self.set_up_classifier()
-        MyoMouse(proportional_control=self.proportional.get())
+        mouse = MyoMouse(proportional_control=self.proportional.get())
+        thread = Thread(target = mouse.start, daemon=True)
+        thread.start()
+
+    def clear_frame(self):
+        for widgets in self.window.winfo_children():
+            widgets.destroy()
 
     def launch_training(self):
         self.window.destroy()
         # Launch training ui
         training_ui = ScreenGuidedTraining()
-        training_ui.download_gestures([1,2,3,4,5], "classes/")
-        training_ui.launch_training(self.odh, 4, 2, "classes/", "data/", 1)
+        training_ui.launch_training(self.odh, 3, 3, "classes/", "data/" + str(time.time()) + '/', 1)
         self.initialize_ui()
 
     def set_up_classifier(self):
-        WINDOW_SIZE = 40 
-        WINDOW_INCREMENT = 20
+        WINDOW_SIZE = 200 
+        WINDOW_INCREMENT = 100
 
         # Step 1: Parse offline training data
         dataset_folder = 'data/'
         classes_values = ["0","1","2","3","4"]
-        classes_regex = make_regex(left_bound = "_C_", right_bound=".csv", values = classes_values)
+        classes_regex = make_regex(left_bound = "_C_", right_bound="_EMG.csv", values = classes_values)
         reps_values = ["0", "1", "2", "3"]
         reps_regex = make_regex(left_bound = "R_", right_bound="_C_", values = reps_values)
         dic = {
@@ -76,7 +85,7 @@ class Menu:
 
         # Step 2: Extract features from offline data
         fe = FeatureExtractor()
-        feature_list = fe.get_feature_groups()['LS4']
+        feature_list = fe.get_feature_groups()['HTD']
         training_features = fe.extract_features(feature_list, train_windows)
 
         # Step 3: Dataset creation
@@ -92,11 +101,13 @@ class Menu:
 
         # Step 5: Create online EMG classifier and start classifying.
         self.classifier = OnlineEMGClassifier(o_classifier, WINDOW_SIZE, WINDOW_INCREMENT, self.odh, feature_list)
-        self.classifier.run(block=False) # block set to false so it will run in a seperate process.
+        self.classifier.run(block=False)
 
     def on_closing(self):
         # Clean up all the processes that have been started
         self.odh.stop_listening()
+        if self.classifier is not None:
+            self.classifier.stop_running()
         self.window.destroy()
 
 if __name__ == "__main__":

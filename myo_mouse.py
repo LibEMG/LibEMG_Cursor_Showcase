@@ -4,11 +4,12 @@ import math
 import datetime
 
 class MyoMouse:
-    def __init__(self, velocity=15, proportional_control=True):
+    def __init__(self, velocity=30, proportional_control=True):
         # Set up default values 
         self.VEL = velocity
         self.proportional_control = proportional_control
 
+    def start(self):
         # Socket for reading EMG
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
         self.sock.bind(('127.0.0.1', 12346))
@@ -27,10 +28,10 @@ class MyoMouse:
             if self.proportional_control:
                 multiplier = float(data.split(' ')[1])
             
-            if input_class == 0:
+            if input_class == 1:
                 # Move Down
                 pyautogui.moveRel(0, self.VEL * multiplier)
-            elif input_class == 1:
+            elif input_class == 0:
                 # Move Up
                 pyautogui.moveRel(0, -self.VEL * multiplier)
             elif input_class == 3:
