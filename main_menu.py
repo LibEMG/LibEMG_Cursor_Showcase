@@ -12,7 +12,7 @@ import time
 class Menu:
     def __init__(self):
         # Myo Streamer - start streaming the myo data 
-        oymotion_streamer(platform='windows')
+        oymotion_streamer(platform='linux')
 
         # Create online data handler to listen for the data
         self.odh = OnlineDataHandler()
